@@ -129,6 +129,50 @@ public class TestHiveSink {
     TestUtil.dropDB(conf, dbName);
   }
 
+  @Test
+  public void testSingleWriterSimplePartitionedTableUsingRegex()
+          throws EventDeliveryException, IOException, CommandNeedRetryException {
+    int totalRecords = 4;
+    int batchSize = 2;
+    int batchCount = totalRecords / batchSize;
+
+    Context context = new Context();
+    context.put("hive.metastore", metaStoreURI);
+    context.put("hive.database",dbName);
+    context.put("hive.table",tblName);
+    context.put("hive.partition", PART1_VALUE + "," + PART2_VALUE);
+    context.put("autoCreatePartitions","false");
+    context.put("batchSize","" + batchSize);
+    context.put("serializer", HiveRegexSerializer.ALIAS);
+    context.put("serializer.regex", "([^,]*),([^,]*)");
+    context.put("heartBeatInterval", "0");
+
+    Channel channel = startSink(sink, context);
+
+    List<String> bodies = Lists.newArrayList();
+
+    // push the events in two batches
+    Transaction txn = channel.getTransaction();
+    txn.begin();
+    for (int j = 1; j <= totalRecords; j++) {
+      Event event = new SimpleEvent();
+      String body = j + ",testing";
+      event.setBody(body.getBytes());
+      bodies.add(body);
+      channel.put(event);
+    }
+    // execute sink to process the events
+    txn.commit();
+    txn.close();
+
+
+    checkRecordCountInTable(0, dbName, tblName);
+    for (int i = 0; i < batchCount ; i++) {
+      sink.process();
+    }
+    sink.stop();
+    checkRecordCountInTable(totalRecords, dbName, tblName);
+  }
 
   @Test
   public void testSingleWriterSimplePartitionedTable()
