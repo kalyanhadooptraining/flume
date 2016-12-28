@@ -2069,7 +2069,7 @@ batchSize                 15000         Max number of events written to Hive in 
 maxOpenConnections        500           Allow only this number of open connections. If this number is exceeded, the least recently used connection is closed.
 callTimeout               10000         (In milliseconds) Timeout for Hive & HDFS I/O operations, such as openTxn, write, commit, abort.
 **serializer**                          Serializer is responsible for parsing out field from the event and mapping them to columns in the hive table.
-                                        Choice of serializer depends upon the format of the data in the event. Supported serializers: DELIMITED and JSON
+                                        Choice of serializer depends upon the format of the data in the event. Supported serializers: DELIMITED, REGEX and JSON
 roundUnit                 minute        The unit of the round down value - ``second``, ``minute`` or ``hour``.
 roundValue                1             Rounded down to the highest multiple of this (in the unit configured using hive.roundUnit), less than current time
 timeZone                  Local Time    Name of the timezone that should be used for resolving the escape sequences in partition, e.g. America/Los_Angeles.
@@ -2082,6 +2082,15 @@ Following serializers are provided for Hive sink:
 in the JSON are mapped directly to columns with the same name in the Hive table.
 Internally uses org.apache.hive.hcatalog.data.JsonSerDe but is independent of the Serde of the Hive table.
 This serializer requires HCatalog to be installed.
+
+**REGEX**: Handles textual events and requires regex configration. Based on the regex, data will be mapped directly to columns in Hive table.
+Internally uses org.apache.hadoop.hive.serde2.RegexSerDe but is independent of the Serde of the Hive table.
+
+==========================    ============  ======================================================================
+Name                          Default       Description
+==========================    ============  ======================================================================
+serializer.regex              (.*)          (Type: string) Input should be proper regex
+==========================    ============  ======================================================================
 
 **DELIMITED**: Handles simple delimited textual events.
 Internally uses LazySimpleSerde but is independent of the Serde of the Hive table.
@@ -2171,6 +2180,36 @@ Example for agent named a1:
  a1.sinks.k1.serializer.delimiter = "\t"
  a1.sinks.k1.serializer.serdeSeparator = '\t'
  a1.sinks.k1.serializer.fieldnames =id,,msg
+
+
+Example Hive table :
+
+.. code-block:: properties
+
+ create table weblogsregex ( id int , msg string, ip string )
+     partitioned by (continent string, country string, time string)
+     clustered by (id) into 5 buckets
+     stored as orc;
+
+Example for agent named a1:
+
+.. code-block:: properties
+
+ a1.channels = c1
+ a1.channels.c1.type = memory
+ a1.sinks = k1
+ a1.sinks.k1.type = hive
+ a1.sinks.k1.channel = c1
+ a1.sinks.k1.hive.metastore = thrift://127.0.0.1:9083
+ a1.sinks.k1.hive.database = logsdb
+ a1.sinks.k1.hive.table = weblogsregex
+ a1.sinks.k1.hive.partition = asia,%{country},%y-%m-%d-%H-%M
+ a1.sinks.k1.useLocalTimeStamp = false
+ a1.sinks.k1.round = true
+ a1.sinks.k1.roundValue = 10
+ a1.sinks.k1.roundUnit = minute
+ a1.sinks.k1.serializer = REGEX
+ a1.sinks.k1.serializer.regex = ([^:]*):([^,]*),(.*)
 
 
 The above configuration will round down the timestamp to the last 10th minute. For example, an event with
@@ -4554,8 +4593,8 @@ in the flow. If this pressure propagates to the source of the flow, Flume will
 become unavailable and may lose data.
 
 **Whether you use redundant topologies.** Flume let's you replicate flows
-across redundant topologies. This can provide a very easy source of fault
-tolerance and one which is overcomes both disk or machine failures. 
+across redundant topologies. This can provide a very easy source of fault
+tolerance and one which is overcomes both disk or machine failures. 
 
 *The best way to think about reliability in a Flume topology is to consider
 various failure scenarios and their outcomes.* What happens if a disk fails?
@@ -4585,7 +4624,7 @@ quantifying how much data you generate. That is not always
 a simple task! Most data streams are bursty (for instance, due to diurnal
 patterns) and potentially unpredictable. A good starting point is to think
 about the maximum throughput you'll have in each tier of the topology, both
-in terms of *events per second* and *bytes per second*. Once you know the
+in terms of *events per second* and *bytes per second*. Once you know the
 required throughput of a given tier, you can calulate a lower bound on how many
 nodes you require for that tier. To determine attainable throughput, it's
 best to experiment with Flume on your hardware, using synthetic or sampled
