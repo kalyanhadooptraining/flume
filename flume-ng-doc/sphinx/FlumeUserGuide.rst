@@ -2084,6 +2084,8 @@ Internally uses org.apache.hive.hcatalog.data.JsonSerDe but is independent of th
 This serializer requires HCatalog to be installed.
 
 **REGEX**: Handles textual events and requires regex configration. Based on the regex, data will be mapped directly to columns in Hive table.
+Suppose Hive table having 3 columns (c1, c2, c3), sample data is "kalyan,1000:say hello" and regex is "([^,]*),([^:]*):(.*)" then based on 
+this information RegexSerializer data will be mapped directly to columns in Hive table like this {c1 => kalyan, c2 => 1000, c3 => say hello}.
 Internally uses org.apache.hadoop.hive.serde2.RegexSerDe but is independent of the Serde of the Hive table.
 
 ==========================    ============  ======================================================================
@@ -2150,7 +2152,7 @@ Alias      Description
           "timestamp" must exist among the headers of the event (unless ``useLocalTimeStamp`` is set to ``true``). One way to add
           this automatically is to use the TimestampInterceptor.
 
-Example Hive table :
+**Example for DELIMITED Serializer Hive table :**
 
 .. code-block:: properties
 
@@ -2182,7 +2184,7 @@ Example for agent named a1:
  a1.sinks.k1.serializer.fieldnames =id,,msg
 
 
-Example Hive table :
+**Example for REGEX Serializer Hive table :**
 
 .. code-block:: properties
 
@@ -2212,7 +2214,7 @@ Example for agent named a1:
  a1.sinks.k1.serializer.regex = ([^:]*):([^,]*),(.*)
 
 
-The above configuration will round down the timestamp to the last 10th minute. For example, an event with
+The above configurations will round down the timestamp to the last 10th minute. For example, an event with
 timestamp header set to 11:54:34 AM, June 12, 2012 and 'country' header set to 'india' will evaluate to the
 partition (continent='asia',country='india',time='2012-06-12-11-50'. The serializer is configured to
 accept tab separated input containing three fields and to skip the second field.
